@@ -1,0 +1,127 @@
+spring:
+  threads:
+    virtual:
+      enabled: true
+
+  application:
+    name: walletcore
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/walletcore
+    username: walletcore
+    password: walletcore_secret
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      connection-timeout: 30000
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+        default_schema: public
+
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    locations: classpath:db/migration
+    schemas: public
+
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: walletcore
+    password: walletcore_secret
+    listener:
+      simple:
+        acknowledge-mode: manual
+        retry:
+          enabled: false  # manual retry via @RabbitListener + Spring Retry
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password: walletcore_secret
+      timeout: 2000ms
+
+  cache:
+    type: redis
+    redis:
+      time-to-live: 300000  # 5 minutes
+
+  batch:
+    job:
+      enabled: false  # jobs são disparados via scheduler, não no startup
+    jdbc:
+      initialize-schema: never  # Flyway cuida do schema do batch
+
+security:
+  jwt:
+    secret: "3cfa76ef14937c1c0ea519f8fc057a80fcd04a7e5f6abe35b318e040f2ac3e0"
+    access-token-expiration: 900000       # 15 minutos em ms
+    refresh-token-expiration: 604800000   # 7 dias em ms
+
+walletcore:
+  rabbitmq:
+    exchange: walletcore.exchange
+    queues:
+      notification: walletcore.notification
+      notification-dlq: walletcore.notification.dlq
+    routing-keys:
+      notification: notification.created
+  rate-limit:
+    transfer:
+      capacity: 10
+      refill-tokens: 10
+      refill-duration-minutes: 1
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operationsSorter: method
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: when-authorized
+
+logging:
+  level:
+    com.walletcore: DEBUG
+    org.springframework.security: WARN
+    org.hibernate.SQL: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+
+---
+spring:
+  config:
+    activate:
+      on-profile: test
+
+  datasource:
+    url: jdbc:tc:postgresql:16:///walletcore_test?TC_REUSABLE=true
+    driver-class-name: org.testcontainers.jdbc.ContainerDatabaseDriver
+
+  flyway:
+    locations: classpath:db/migration
+    clean-on-validation-error: true
+
+  rabbitmq:
+    host: localhost  # sobrescrito via @DynamicPropertySource nos testes
+
+  data:
+    redis:
+      host: localhost  # sobrescrito via @DynamicPropertySource nos testes
