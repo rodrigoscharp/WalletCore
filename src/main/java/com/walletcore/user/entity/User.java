@@ -64,6 +64,9 @@ public class User implements UserDetails {
     @Override
     public boolean isCredentialsNonExpired() { return true; }
 
+    @Override
+    public String getPassword() { return password; }
+
     public UUID getId() { return id; }
     public String getEmail() { return email; }
     public String getFullName() { return fullName; }
