@@ -1,0 +1,31 @@
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+
+security:
+  jwt:
+    secret: "3cfa76ef14937c1c0ea519f8fc057a80fcd04a7e5f6abe35b318e040f2ac3e0"
+    access-token-expiration: 900000
+    refresh-token-expiration: 604800000
+
+walletcore:
+  rabbitmq:
+    exchange: walletcore.exchange
+    queues:
+      notification: walletcore.notification
+      notification-dlq: walletcore.notification.dlq
+    routing-keys:
+      notification: notification.created
+  rate-limit:
+    transfer:
+      capacity: 100
+      refill-tokens: 100
+      refill-duration-minutes: 1
+
+logging:
+  level:
+    com.walletcore: INFO
+    org.testcontainers: WARN
+    com.github.dockerjava: WARN
