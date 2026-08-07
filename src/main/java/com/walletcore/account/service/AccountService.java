@@ -38,6 +38,8 @@ public class AccountService {
     @CacheEvict(value = "accounts", key = "#result.userId()")
     public AccountResponse createAccount(CreateAccountRequest request) {
         var user = currentUser();
+        findClearingAccount(request.currency());   // 422 se a moeda não for suportada
+
         var account = new Account(user, request.name(), request.currency());
         accountRepository.save(account);
 
@@ -61,6 +63,12 @@ public class AccountService {
         var account = findAccountOwnedBy(accountId, user);
         return new BalanceResponse(account.getId(), account.getBalance(),
                 account.getCurrency(), Instant.now());
+    }
+
+    public Account findClearingAccount(String currency) {
+        return accountRepository.findByCurrencyAndIsSystemTrue(currency)
+                .orElseThrow(() -> new ApiException(HttpStatus.UNPROCESSABLE_ENTITY,
+                        "Currency not supported: " + currency));
     }
 
     public Account findAccountOwnedBy(UUID accountId, User user) {

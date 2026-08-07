@@ -98,4 +98,15 @@ class AccountIntegrationTest extends AbstractIntegrationTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isUnauthorized());
     }
+
+    @Test
+    void createAccount_withUnsupportedCurrency_shouldReturn422() throws Exception {
+        mockMvc.perform(post("/api/v1/accounts")
+                        .header("Authorization", "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                new CreateAccountRequest("Conta Dólar", "USD"))))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.message").value("Currency not supported: USD"));
+    }
 }
