@@ -159,6 +159,15 @@ public class TransactionService {
                     "Source and target accounts must have the same currency");
         }
 
+        // A conta de compensação só pode ser contraparte de DEPOSIT/WITHDRAWAL. O saldo dela é,
+        // por definição, exatamente o que o sistema deve ao mundo externo — uma TRANSFER comum
+        // contra ela moveria esse número por dentro e quebraria a invariante. O id da compensação
+        // não é secreto (volta como sourceAccountId em toda resposta de depósito), então
+        // respondemos 404 em vez de 422: não confirmamos ao chamador o que aquele id é.
+        if (type == Transaction.TransactionType.TRANSFER && (source.isSystem() || target.isSystem())) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "Account not found");
+        }
+
         if (!source.isSystem() && source.getBalance().compareTo(amount) < 0) {
             throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY,
                     "Insufficient balance to complete the transfer");
