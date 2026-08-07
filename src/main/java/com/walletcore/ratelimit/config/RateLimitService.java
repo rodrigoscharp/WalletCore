@@ -19,11 +19,11 @@ public class RateLimitService {
         this.properties = properties;
     }
 
-    public void checkTransferLimit(String userEmail) {
+    public void checkOperationLimit(String userEmail) {
         var bucket = buckets.computeIfAbsent(userEmail, this::newBucket);
         if (!bucket.tryConsume(1)) {
             throw new ApiException(HttpStatus.TOO_MANY_REQUESTS,
-                    String.format("Rate limit exceeded: max %d transfers per %d minute(s)",
+                    String.format("Rate limit exceeded: max %d operations per %d minute(s)",
                             properties.getCapacity(), properties.getRefillDurationMinutes()));
         }
     }

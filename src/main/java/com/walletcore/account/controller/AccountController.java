@@ -4,6 +4,7 @@ import com.walletcore.account.dto.AccountResponse;
 import com.walletcore.account.dto.BalanceResponse;
 import com.walletcore.account.dto.CreateAccountRequest;
 import com.walletcore.account.service.AccountService;
+import com.walletcore.ratelimit.config.RateLimitService;
 import com.walletcore.transaction.dto.AmountRequest;
 import com.walletcore.transaction.dto.TransactionResponse;
 import com.walletcore.transaction.service.TransactionService;
@@ -12,6 +13,8 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -25,11 +28,14 @@ public class AccountController {
 
     private final AccountService accountService;
     private final TransactionService transactionService;
+    private final RateLimitService rateLimitService;
 
     public AccountController(AccountService accountService,
-                             TransactionService transactionService) {
+                             TransactionService transactionService,
+                             RateLimitService rateLimitService) {
         this.accountService = accountService;
         this.transactionService = transactionService;
+        this.rateLimitService = rateLimitService;
     }
 
     @PostMapping
@@ -57,8 +63,10 @@ public class AccountController {
     public TransactionResponse deposit(
             @PathVariable UUID id,
             @Valid @RequestBody AmountRequest request,
-            @RequestHeader("Idempotency-Key") String idempotencyKey) {
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
+            @AuthenticationPrincipal UserDetails userDetails) {
 
+        rateLimitService.checkOperationLimit(userDetails.getUsername());
         return transactionService.deposit(id, request, idempotencyKey);
     }
 
@@ -68,8 +76,10 @@ public class AccountController {
     public TransactionResponse withdraw(
             @PathVariable UUID id,
             @Valid @RequestBody AmountRequest request,
-            @RequestHeader("Idempotency-Key") String idempotencyKey) {
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
+            @AuthenticationPrincipal UserDetails userDetails) {
 
+        rateLimitService.checkOperationLimit(userDetails.getUsername());
         return transactionService.withdraw(id, request, idempotencyKey);
     }
 }

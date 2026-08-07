@@ -44,7 +44,7 @@ public class TransactionController {
             @RequestHeader("Idempotency-Key") String idempotencyKey,
             @AuthenticationPrincipal UserDetails userDetails) {
 
-        rateLimitService.checkTransferLimit(userDetails.getUsername());
+        rateLimitService.checkOperationLimit(userDetails.getUsername());
         return transactionService.transfer(request, idempotencyKey);
     }
 
