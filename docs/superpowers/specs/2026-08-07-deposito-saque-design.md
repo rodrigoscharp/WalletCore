@@ -105,9 +105,15 @@ Os três métodos públicos ficam finos:
 O parâmetro `ownedAccountId` existe porque no depósito a conta que precisa pertencer ao usuário é
 a de destino, não a de origem — hoje a checagem em `TransactionService.java:79` é fixa na origem.
 
-Preservado sem alteração: lock pessimista com ordenação por UUID, idempotência por
-`Idempotency-Key`, registro no ledger via `LedgerService.recordTransfer`, e publicação do evento de
-notificação. Depósito e saque herdam tudo isso.
+Preservado sem alteração: lock pessimista com ordenação por UUID, registro no ledger via
+`LedgerService.recordTransfer`, e publicação do evento de notificação. Depósito e saque herdam
+tudo isso.
+
+A idempotência por `Idempotency-Key` não fica preservada sem alteração: como a chave tem UNIQUE
+global na tabela `transactions`, um hit passa a ser tratado como replay só quando a transação
+armazenada corresponde à requisição em tipo, conta de origem, conta de destino e valor — antes,
+qualquer hit era devolvido como replay, o que faria uma chave reusada entre depósito e saque
+responder 201 com o corpo da operação errada. Quando não corresponde, responde 409.
 
 Dois pontos cedem quando a conta de origem é de sistema:
 
@@ -159,6 +165,7 @@ A lógica permanece em `TransactionService` — `AccountController` apenas deleg
 | 400 | Validação do corpo, ou header `Idempotency-Key` ausente |
 | 403 | Conta pertence a outro usuário |
 | 404 | Conta inexistente |
+| 409 | `Idempotency-Key` já usada para uma operação diferente |
 | 422 | Saldo insuficiente (saque), conta não ativa, moeda sem compensação, moedas divergentes |
 | 429 | Rate limit excedido |
 

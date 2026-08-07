@@ -210,6 +210,8 @@ http://localhost:8080/swagger-ui.html
 | `POST` | `/api/v1/accounts` | JWT | Cria conta financeira |
 | `GET` | `/api/v1/accounts` | JWT | Lista contas do usuário |
 | `GET` | `/api/v1/accounts/{id}/balance` | JWT | Consulta saldo em tempo real |
+| `POST` | `/api/v1/accounts/{id}/deposit` | JWT + Idempotency-Key | Deposita valor na conta |
+| `POST` | `/api/v1/accounts/{id}/withdraw` | JWT + Idempotency-Key | Saca valor da conta |
 
 ### Transações
 
@@ -308,9 +310,9 @@ Todos os erros retornam o mesmo formato:
 | `401` | Token ausente ou inválido |
 | `403` | Operação em conta de outro usuário |
 | `404` | Recurso não encontrado |
-| `409` | E-mail já cadastrado |
+| `409` | E-mail já cadastrado, ou `Idempotency-Key` reusada para uma operação diferente |
 | `422` | Saldo insuficiente, contas iguais, conta inativa |
-| `429` | Rate limit excedido (10 transferências/min) |
+| `429` | Rate limit excedido (10 operações/min, entre transferência, depósito e saque) |
 
 ---
 
@@ -327,6 +329,9 @@ mvn test
 | `AuthIntegrationTest` | Registro, login, refresh de token, e-mail duplicado, credencial inválida |
 | `AccountIntegrationTest` | Criar conta, listar, consultar saldo, acesso sem autenticação |
 | `TransferIntegrationTest` | Transferência bem-sucedida, saldo insuficiente, idempotência, paginação |
+| `DepositWithdrawIntegrationTest` | Depósito, saque, saldo insuficiente, conta alheia, idempotência, partida dobrada |
+| `ClearingAccountIntegrationTest` | Seed da conta de compensação BRL |
+| `CrossCurrencyTransferIntegrationTest` | Transferência entre moedas diferentes é rejeitada |
 
 ---
 
@@ -339,7 +344,14 @@ Transferências financeiras têm alta probabilidade de conflito quando dois usu�
 Sem ordem determinística, duas transferências `A→B` e `B→A` podem causar deadlock. Adquirindo sempre o lock do menor UUID primeiro, eliminamos a possibilidade de deadlock por definição.
 
 **`Idempotency-Key` no header**  
-Segue o padrão de APIs financeiras (Stripe, Adyen). O cliente gera a chave antes de enviar — mesmo que a rede falhe após o processamento, reenviar a mesma requisição retorna o resultado original sem duplicar a operação.
+Segue o padrão de APIs financeiras (Stripe, Adyen). O cliente gera a chave antes de enviar — mesmo que a rede falhe após o processamento, reenviar a mesma requisição retorna o resultado original sem duplicar a operação. A chave tem UNIQUE global na tabela `transactions`, então um hit só é tratado como replay quando a transação armazenada corresponde à requisição em tipo, conta de origem, conta de destino e valor; a mesma chave usada para uma operação diferente é rejeitada com `409` em vez de devolver o resultado da operação errada.
+
+**Conta de compensação para dinheiro externo**  
+Depósito e saque não têm contraparte interna. Em vez de tornar `source_account_id` e
+`target_account_id` nulos — o que quebraria a partida dobrada — o dinheiro que entra vem de uma
+conta de compensação por moeda, marcada com `is_system`. Ela é a única que pode ficar negativa, e
+seu saldo é exatamente o total que o sistema deve ao mundo externo. A soma de todos os lançamentos
+do ledger continua sendo zero.
 
 **Testcontainers em vez de H2**  
 H2 emula apenas parcialmente o PostgreSQL: constraints `CHECK`, tipos `UUID` nativos e comportamento de locks diferem. Testcontainers garante que os testes rodem contra o mesmo engine da produção.
