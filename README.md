@@ -43,7 +43,7 @@ WalletCore é uma **API REST de carteira digital** que implementa operações fi
 | Retry | Spring Retry + backoff exponencial (1s → 2s → 4s) |
 | Jobs | Spring Batch (extrato mensal + relatório de saldo) |
 | Documentação | SpringDoc OpenAPI 2 (Swagger UI) |
-| Rate Limiting | Bucket4j (10 transferências/minuto por usuário) |
+| Rate Limiting | Bucket4j (10 operações/minuto por usuário — transferência, depósito e saque) |
 | Cache | Redis 7.4 (Spring Cache) |
 | Testes | JUnit 5 + Testcontainers + MockMvc |
 | Build | Maven |
@@ -86,7 +86,7 @@ com.walletcore
 │   └── jobs/           # BatchScheduler — cron 01:00 e 02:00 do dia 1
 │
 ├── ratelimit/          # Rate limiting por usuário
-│   └── config/         # Bucket4j — 10 transferências/minuto
+│   └── config/         # Bucket4j — 10 operações/minuto
 │
 └── config/             # SecurityConfig, RabbitMQConfig, RedisConfig, OpenApiConfig
 ```
