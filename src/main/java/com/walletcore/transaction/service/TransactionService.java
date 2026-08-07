@@ -81,11 +81,25 @@ public class TransactionService {
     private TransactionResponse executeTransfer(UUID sourceId, UUID targetId, UUID ownedAccountId,
                                                 BigDecimal amount, Transaction.TransactionType type,
                                                 String idempotencyKey, String description) {
-        // Idempotência: retorna transação existente se a chave já foi processada
+        // Idempotência: retorna transação existente se a chave já foi processada — mas só se
+        // ela corresponder à mesma operação. idempotency_key tem UNIQUE global na tabela, então
+        // uma chave reusada entre tipos diferentes (ex.: depósito e depois saque) não pode ser
+        // tratada como replay: seria devolver 201 com o corpo de uma operação que não aconteceu.
         var existing = transactionRepository.findByIdempotencyKey(idempotencyKey);
         if (existing.isPresent()) {
+            var tx = existing.get();
+            var sameOperation = tx.getType() == type
+                    && tx.getSourceAccount().getId().equals(sourceId)
+                    && tx.getTargetAccount().getId().equals(targetId)
+                    && tx.getAmount().compareTo(amount) == 0;
+
+            if (!sameOperation) {
+                throw new ApiException(HttpStatus.CONFLICT,
+                        "Idempotency key already used for a different operation");
+            }
+
             log.info("Idempotent request, returning existing tx: {}", idempotencyKey);
-            return TransactionResponse.from(existing.get());
+            return TransactionResponse.from(tx);
         }
 
         var user = accountService.currentUser();

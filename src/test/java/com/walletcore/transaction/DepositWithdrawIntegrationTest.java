@@ -114,6 +114,28 @@ class DepositWithdrawIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void withdraw_withKeyReusedFromDeposit_shouldReturn409() throws Exception {
+        var key = UUID.randomUUID().toString();
+
+        deposit(accessToken, accountId, "150.00", key)
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.type").value("DEPOSIT"));
+
+        mockMvc.perform(post("/api/v1/accounts/" + accountId + "/withdraw")
+                        .header("Authorization", "Bearer " + accessToken)
+                        .header("Idempotency-Key", key)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                new AmountRequest(new BigDecimal("50.00"), "Saque com chave reusada"))))
+                .andExpect(status().isConflict());
+
+        // O saque não deve ter acontecido: saldo reflete só o depósito original
+        mockMvc.perform(get("/api/v1/accounts/" + accountId + "/balance")
+                        .header("Authorization", "Bearer " + accessToken))
+                .andExpect(jsonPath("$.balance").value(150.00));
+    }
+
+    @Test
     void deposit_shouldRecordBalancedDoubleEntry() throws Exception {
         var result = deposit(accessToken, accountId, "120.00", UUID.randomUUID().toString())
                 .andExpect(status().isCreated()).andReturn();
