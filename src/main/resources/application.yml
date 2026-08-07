@@ -118,9 +118,8 @@ spring:
     activate:
       on-profile: test
 
-  datasource:
-    url: jdbc:tc:postgresql:16:///walletcore_test?TC_REUSABLE=true
-    driver-class-name: org.testcontainers.jdbc.ContainerDatabaseDriver
+  # datasource url/username/password vêm do @DynamicPropertySource de AbstractIntegrationTest,
+  # apontando para o container PostgreSQL real. O driver é inferido da URL jdbc:postgresql://...
 
   flyway:
     locations: classpath:db/migration
@@ -132,3 +131,4 @@ spring:
   data:
     redis:
       host: localhost  # sobrescrito via @DynamicPropertySource nos testes
+      password: ""     # o Redis de teste sobe sem senha

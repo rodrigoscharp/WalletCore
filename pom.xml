@@ -23,7 +23,9 @@
         <jjwt.version>0.12.6</jjwt.version>
         <springdoc.version>2.6.0</springdoc.version>
         <bucket4j.version>8.10.1</bucket4j.version>
-        <testcontainers.version>1.20.1</testcontainers.version>
+        <!-- 2.x é obrigatório: as 1.x embutem docker-java 3.4.x, que negocia a API Docker 1.32 e
+             é recusado com HTTP 400 por engines modernos (min API 1.44). Ver task-0-report.md. -->
+        <testcontainers.version>2.0.5</testcontainers.version>
     </properties>
 
     <dependencies>
@@ -163,21 +165,24 @@
             <artifactId>spring-batch-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- Testcontainers 2.x renomeou os módulos para testcontainers-*. Não usamos o módulo
+             junit-jupiter: AbstractIntegrationTest adota o padrão de container singleton, sem a
+             extensão @Testcontainers. -->
         <dependency>
             <groupId>org.testcontainers</groupId>
-            <artifactId>junit-jupiter</artifactId>
+            <artifactId>testcontainers</artifactId>
             <version>${testcontainers.version}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.testcontainers</groupId>
-            <artifactId>postgresql</artifactId>
+            <artifactId>testcontainers-postgresql</artifactId>
             <version>${testcontainers.version}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.testcontainers</groupId>
-            <artifactId>rabbitmq</artifactId>
+            <artifactId>testcontainers-rabbitmq</artifactId>
             <version>${testcontainers.version}</version>
             <scope>test</scope>
         </dependency>
