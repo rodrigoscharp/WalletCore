@@ -4,6 +4,9 @@ import com.walletcore.account.dto.AccountResponse;
 import com.walletcore.account.dto.BalanceResponse;
 import com.walletcore.account.dto.CreateAccountRequest;
 import com.walletcore.account.service.AccountService;
+import com.walletcore.transaction.dto.AmountRequest;
+import com.walletcore.transaction.dto.TransactionResponse;
+import com.walletcore.transaction.service.TransactionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -21,9 +24,12 @@ import java.util.UUID;
 public class AccountController {
 
     private final AccountService accountService;
+    private final TransactionService transactionService;
 
-    public AccountController(AccountService accountService) {
+    public AccountController(AccountService accountService,
+                             TransactionService transactionService) {
         this.accountService = accountService;
+        this.transactionService = transactionService;
     }
 
     @PostMapping
@@ -43,5 +49,27 @@ public class AccountController {
     @Operation(summary = "Get account balance")
     public BalanceResponse balance(@PathVariable UUID id) {
         return accountService.getBalance(id);
+    }
+
+    @PostMapping("/{id}/deposit")
+    @ResponseStatus(HttpStatus.CREATED)
+    @Operation(summary = "Deposit funds into an account")
+    public TransactionResponse deposit(
+            @PathVariable UUID id,
+            @Valid @RequestBody AmountRequest request,
+            @RequestHeader("Idempotency-Key") String idempotencyKey) {
+
+        return transactionService.deposit(id, request, idempotencyKey);
+    }
+
+    @PostMapping("/{id}/withdraw")
+    @ResponseStatus(HttpStatus.CREATED)
+    @Operation(summary = "Withdraw funds from an account")
+    public TransactionResponse withdraw(
+            @PathVariable UUID id,
+            @Valid @RequestBody AmountRequest request,
+            @RequestHeader("Idempotency-Key") String idempotencyKey) {
+
+        return transactionService.withdraw(id, request, idempotencyKey);
     }
 }

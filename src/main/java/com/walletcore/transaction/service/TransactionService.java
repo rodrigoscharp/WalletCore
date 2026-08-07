@@ -1,10 +1,12 @@
 package com.walletcore.transaction.service;
 
+import com.walletcore.account.entity.Account;
 import com.walletcore.account.repository.AccountRepository;
 import com.walletcore.account.service.AccountService;
 import com.walletcore.config.error.ApiException;
 import com.walletcore.ledger.service.LedgerService;
 import com.walletcore.notification.producer.NotificationProducer;
+import com.walletcore.transaction.dto.AmountRequest;
 import com.walletcore.transaction.dto.TransactionResponse;
 import com.walletcore.transaction.dto.TransferRequest;
 import com.walletcore.transaction.entity.Transaction;
@@ -54,6 +56,26 @@ public class TransactionService {
                 Transaction.TransactionType.TRANSFER,
                 idempotencyKey,
                 request.description());
+    }
+
+    @Transactional
+    public TransactionResponse deposit(UUID accountId, AmountRequest request, String idempotencyKey) {
+        var clearing = resolveClearingFor(accountId);
+        return executeTransfer(clearing.getId(), accountId, accountId, request.amount(),
+                Transaction.TransactionType.DEPOSIT, idempotencyKey, request.description());
+    }
+
+    @Transactional
+    public TransactionResponse withdraw(UUID accountId, AmountRequest request, String idempotencyKey) {
+        var clearing = resolveClearingFor(accountId);
+        return executeTransfer(accountId, clearing.getId(), accountId, request.amount(),
+                Transaction.TransactionType.WITHDRAWAL, idempotencyKey, request.description());
+    }
+
+    private Account resolveClearingFor(UUID accountId) {
+        var account = accountRepository.findById(accountId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Account not found"));
+        return accountService.findClearingAccount(account.getCurrency());
     }
 
     private TransactionResponse executeTransfer(UUID sourceId, UUID targetId, UUID ownedAccountId,

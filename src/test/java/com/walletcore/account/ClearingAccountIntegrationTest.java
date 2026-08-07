@@ -10,7 +10,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.math.BigDecimal;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -31,7 +30,11 @@ class ClearingAccountIntegrationTest extends AbstractIntegrationTest {
         assertTrue(clearing.isPresent(), "Conta de compensação BRL deve existir");
         assertTrue(clearing.get().isSystem());
         assertEquals("BRL", clearing.get().getCurrency());
-        assertEquals(0, clearing.get().getBalance().compareTo(BigDecimal.ZERO));
+        // Sem asserção de saldo: os containers de teste (Postgres) são singleton e o banco é
+        // compartilhado entre classes de teste, então o saldo da compensação reflete qualquer
+        // depósito/saque já executado por outras classes na mesma JVM. Não há estado "imaculado"
+        // garantido aqui — só a presença, a flag de sistema e a moeda são invariantes reais da
+        // migration.
     }
 
     @Test
