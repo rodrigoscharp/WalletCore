@@ -65,6 +65,9 @@ public class User implements UserDetails {
     public boolean isCredentialsNonExpired() { return true; }
 
     @Override
+    public boolean isEnabled() { return enabled; }
+
+    @Override
     public String getPassword() { return password; }
 
     public UUID getId() { return id; }
