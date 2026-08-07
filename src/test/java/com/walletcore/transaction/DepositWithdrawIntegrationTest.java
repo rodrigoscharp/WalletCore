@@ -24,6 +24,8 @@ class DepositWithdrawIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired MockMvc mockMvc;
     @Autowired ObjectMapper objectMapper;
+    @Autowired com.walletcore.ledger.repository.LedgerEntryRepository ledgerEntryRepository;
+    @Autowired com.walletcore.account.repository.AccountRepository accountRepository;
 
     String accessToken;
     UUID accountId;
@@ -109,6 +111,44 @@ class DepositWithdrawIntegrationTest extends AbstractIntegrationTest {
     void deposit_withNonPositiveAmount_shouldReturn422() throws Exception {
         deposit(accessToken, accountId, "0.00", UUID.randomUUID().toString())
                 .andExpect(status().isUnprocessableEntity());
+    }
+
+    @Test
+    void deposit_shouldRecordBalancedDoubleEntry() throws Exception {
+        var result = deposit(accessToken, accountId, "120.00", UUID.randomUUID().toString())
+                .andExpect(status().isCreated()).andReturn();
+
+        var txId = UUID.fromString(objectMapper
+                .readTree(result.getResponse().getContentAsString()).get("id").asText());
+
+        var entries = ledgerEntryRepository.findAllByTransactionIdOrderByCreatedAtAsc(txId);
+
+        assertEquals(2, entries.size(), "Depósito deve gerar dois lançamentos");
+
+        var debits = entries.stream()
+                .filter(e -> e.getEntryType() == com.walletcore.ledger.entity.LedgerEntry.EntryType.DEBIT)
+                .map(com.walletcore.ledger.entity.LedgerEntry::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        var credits = entries.stream()
+                .filter(e -> e.getEntryType() == com.walletcore.ledger.entity.LedgerEntry.EntryType.CREDIT)
+                .map(com.walletcore.ledger.entity.LedgerEntry::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        assertEquals(0, credits.subtract(debits).compareTo(BigDecimal.ZERO),
+                "Soma dos créditos deve igualar a dos débitos");
+    }
+
+    @Test
+    void deposit_shouldDriveClearingAccountNegative() throws Exception {
+        var before = accountRepository.findByCurrencyAndIsSystemTrue("BRL").orElseThrow().getBalance();
+
+        deposit(accessToken, accountId, "40.00", UUID.randomUUID().toString())
+                .andExpect(status().isCreated());
+
+        var after = accountRepository.findByCurrencyAndIsSystemTrue("BRL").orElseThrow().getBalance();
+
+        assertEquals(0, before.subtract(new BigDecimal("40.00")).compareTo(after),
+                "Compensação deve ficar 40 mais negativa após o depósito");
     }
 
     private org.springframework.test.web.servlet.ResultActions deposit(

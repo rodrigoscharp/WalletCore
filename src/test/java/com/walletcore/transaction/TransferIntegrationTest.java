@@ -5,6 +5,7 @@ import com.walletcore.AbstractIntegrationTest;
 import com.walletcore.account.dto.CreateAccountRequest;
 import com.walletcore.auth.dto.LoginRequest;
 import com.walletcore.auth.dto.RegisterRequest;
+import com.walletcore.transaction.dto.AmountRequest;
 import com.walletcore.transaction.dto.TransferRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -130,6 +131,19 @@ class TransferIntegrationTest extends AbstractIntegrationTest {
                 .andReturn();
 
         var body = objectMapper.readTree(result.getResponse().getContentAsString());
-        return UUID.fromString(body.get("id").asText());
+        var accountId = UUID.fromString(body.get("id").asText());
+
+        var amount = new BigDecimal(initialBalance);
+        if (amount.compareTo(BigDecimal.ZERO) > 0) {
+            mockMvc.perform(post("/api/v1/accounts/" + accountId + "/deposit")
+                            .header("Authorization", "Bearer " + accessToken)
+                            .header("Idempotency-Key", UUID.randomUUID().toString())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(
+                                    new AmountRequest(amount, "Saldo inicial"))))
+                    .andExpect(status().isCreated());
+        }
+
+        return accountId;
     }
 }
