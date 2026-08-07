@@ -71,6 +71,22 @@ public class AccountService {
                         "Currency not supported: " + currency));
     }
 
+    /**
+     * Mesma semântica de {@link #findClearingAccount(String)} — inclusive o 422 quando a moeda não
+     * tem compensação — mas devolve só o id, sem trazer o {@code Account} para o contexto de
+     * persistência.
+     *
+     * <p>É o que o caminho de depósito/saque usa: ele precisa do id da compensação para montar a
+     * ordem de lock, e materializar a entidade antes do {@code SELECT ... FOR UPDATE} faria o
+     * Hibernate devolver a instância em cache na leitura travada, com saldo velho. Ver
+     * {@link com.walletcore.account.repository.AccountRepository#findByIdWithLock}.
+     */
+    public UUID findClearingAccountId(String currency) {
+        return accountRepository.findIdByCurrencyAndIsSystemTrue(currency)
+                .orElseThrow(() -> new ApiException(HttpStatus.UNPROCESSABLE_ENTITY,
+                        "Currency not supported: " + currency));
+    }
+
     public Account findAccountOwnedBy(UUID accountId, User user) {
         var account = accountRepository.findById(accountId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Account not found"));
