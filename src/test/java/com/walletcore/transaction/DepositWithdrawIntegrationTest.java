@@ -136,6 +136,27 @@ class DepositWithdrawIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void deposit_withKeyReusedForDifferentAmount_shouldReturn409() throws Exception {
+        var key = UUID.randomUUID().toString();
+
+        deposit(accessToken, accountId, "100.00", key)
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.type").value("DEPOSIT"));
+
+        // Mesmo tipo, mesma conta, chave repetida — mas valor diferente: cliente com bug que
+        // gera a chave errado, não um retry legítimo. Deve ser rejeitado, não tratado como replay.
+        deposit(accessToken, accountId, "200.00", key)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message")
+                        .value("Idempotency key already used for a different operation"));
+
+        // O segundo depósito não deve ter acontecido: saldo reflete só o primeiro
+        mockMvc.perform(get("/api/v1/accounts/" + accountId + "/balance")
+                        .header("Authorization", "Bearer " + accessToken))
+                .andExpect(jsonPath("$.balance").value(100.00));
+    }
+
+    @Test
     void deposit_shouldRecordBalancedDoubleEntry() throws Exception {
         var result = deposit(accessToken, accountId, "120.00", UUID.randomUUID().toString())
                 .andExpect(status().isCreated()).andReturn();

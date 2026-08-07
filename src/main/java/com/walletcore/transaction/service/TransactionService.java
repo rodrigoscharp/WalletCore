@@ -81,10 +81,22 @@ public class TransactionService {
     private TransactionResponse executeTransfer(UUID sourceId, UUID targetId, UUID ownedAccountId,
                                                 BigDecimal amount, Transaction.TransactionType type,
                                                 String idempotencyKey, String description) {
+        var user = accountService.currentUser();
+
+        // Confirma posse antes de expor qualquer coisa: idempotency_key tem UNIQUE global na
+        // tabela, então uma chave reusada pode colidir com uma transação de outro usuário. Sem
+        // essa checagem aqui, o branch de replay abaixo devolveria o corpo de uma transação que
+        // o chamador nunca provou ser dele.
+        accountService.findAccountOwnedBy(ownedAccountId, user);
+
         // Idempotência: retorna transação existente se a chave já foi processada — mas só se
-        // ela corresponder à mesma operação. idempotency_key tem UNIQUE global na tabela, então
-        // uma chave reusada entre tipos diferentes (ex.: depósito e depois saque) não pode ser
-        // tratada como replay: seria devolver 201 com o corpo de uma operação que não aconteceu.
+        // ela corresponder à mesma operação (mesmo tipo, mesmas contas de origem/destino e mesmo
+        // valor). idempotency_key tem UNIQUE global na tabela, então uma chave reusada para uma
+        // operação diferente — outro tipo (depósito depois saque), outro valor ou outras contas
+        // — não pode ser tratada como replay: seria devolver 201 com o corpo de uma operação que
+        // não aconteceu. `description` é deliberadamente excluído dessa comparação: um retry
+        // legítimo reenvia o corpo idêntico, e uma diferença só na descrição já devolve a
+        // transação armazenada, que a própria resposta revela.
         var existing = transactionRepository.findByIdempotencyKey(idempotencyKey);
         if (existing.isPresent()) {
             var tx = existing.get();
@@ -102,8 +114,6 @@ public class TransactionService {
             return TransactionResponse.from(tx);
         }
 
-        var user = accountService.currentUser();
-
         if (sourceId.equals(targetId)) {
             throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY,
                     "Source and target accounts must be different");
@@ -120,9 +130,6 @@ public class TransactionService {
 
         var source = firstLockId.equals(sourceId) ? firstAccount : secondAccount;
         var target = firstLockId.equals(targetId) ? firstAccount : secondAccount;
-
-        // No depósito a conta que precisa pertencer ao usuário é a de destino
-        accountService.findAccountOwnedBy(ownedAccountId, user);
 
         if (!source.getCurrency().equals(target.getCurrency())) {
             throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY,
