@@ -88,6 +88,11 @@ public class TransactionService {
         // No depósito a conta que precisa pertencer ao usuário é a de destino
         accountService.findAccountOwnedBy(ownedAccountId, user);
 
+        if (!source.getCurrency().equals(target.getCurrency())) {
+            throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Source and target accounts must have the same currency");
+        }
+
         if (!source.isSystem() && source.getBalance().compareTo(amount) < 0) {
             throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY,
                     "Insufficient balance to complete the transfer");
