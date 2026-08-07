@@ -17,6 +17,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -45,25 +46,34 @@ public class TransactionService {
 
     @Transactional
     public TransactionResponse transfer(TransferRequest request, String idempotencyKey) {
+        return executeTransfer(
+                request.sourceAccountId(),
+                request.targetAccountId(),
+                request.sourceAccountId(),
+                request.amount(),
+                Transaction.TransactionType.TRANSFER,
+                idempotencyKey,
+                request.description());
+    }
+
+    private TransactionResponse executeTransfer(UUID sourceId, UUID targetId, UUID ownedAccountId,
+                                                BigDecimal amount, Transaction.TransactionType type,
+                                                String idempotencyKey, String description) {
         // Idempotência: retorna transação existente se a chave já foi processada
         var existing = transactionRepository.findByIdempotencyKey(idempotencyKey);
         if (existing.isPresent()) {
-            log.info("Idempotent transfer request, returning existing tx: {}", idempotencyKey);
+            log.info("Idempotent request, returning existing tx: {}", idempotencyKey);
             return TransactionResponse.from(existing.get());
         }
 
         var user = accountService.currentUser();
-
-        // Lock pessimista em ordem determinística para evitar deadlock
-        var sourceId = request.sourceAccountId();
-        var targetId = request.targetAccountId();
 
         if (sourceId.equals(targetId)) {
             throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY,
                     "Source and target accounts must be different");
         }
 
-        // Garante ordem de lock consistente (menor UUID primeiro)
+        // Garante ordem de lock consistente (menor UUID primeiro) para evitar deadlock
         var firstLockId  = sourceId.compareTo(targetId) < 0 ? sourceId : targetId;
         var secondLockId = sourceId.compareTo(targetId) < 0 ? targetId : sourceId;
 
@@ -75,27 +85,27 @@ public class TransactionService {
         var source = firstLockId.equals(sourceId) ? firstAccount : secondAccount;
         var target = firstLockId.equals(targetId) ? firstAccount : secondAccount;
 
-        // Valida posse da conta origem
-        accountService.findAccountOwnedBy(source.getId(), user);
+        // No depósito a conta que precisa pertencer ao usuário é a de destino
+        accountService.findAccountOwnedBy(ownedAccountId, user);
 
-        if (source.getBalance().compareTo(request.amount()) < 0) {
+        if (!source.isSystem() && source.getBalance().compareTo(amount) < 0) {
             throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY,
                     "Insufficient balance to complete the transfer");
         }
 
         var transaction = Transaction.create(
-                source, target, request.amount(), source.getCurrency(),
-                Transaction.TransactionType.TRANSFER, idempotencyKey, request.description());
+                source, target, amount, source.getCurrency(),
+                type, idempotencyKey, description);
         transactionRepository.save(transaction);
 
-        source.debit(request.amount());
-        target.credit(request.amount());
+        source.debit(amount);
+        target.credit(amount);
 
-        ledgerService.recordTransfer(transaction, source, target, request.amount());
+        ledgerService.recordTransfer(transaction, source, target, amount);
         transaction.complete();
 
-        log.info("Transfer completed: {} -> {} amount={} tx={}",
-                source.getId(), target.getId(), request.amount(), transaction.getId());
+        log.info("{} completed: {} -> {} amount={} tx={}",
+                type, source.getId(), target.getId(), amount, transaction.getId());
 
         notificationProducer.publishTransferEvent(transaction, user);
 
