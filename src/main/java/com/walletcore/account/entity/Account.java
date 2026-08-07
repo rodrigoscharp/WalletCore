@@ -32,6 +32,9 @@ public class Account {
     @Column(nullable = false)
     private AccountStatus status = AccountStatus.ACTIVE;
 
+    @Column(name = "is_system", nullable = false)
+    private boolean isSystem = false;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
@@ -57,7 +60,7 @@ public class Account {
     }
 
     public void debit(BigDecimal amount) {
-        if (this.balance.compareTo(amount) < 0) {
+        if (!isSystem && this.balance.compareTo(amount) < 0) {
             throw new IllegalStateException("Insufficient balance");
         }
         this.balance = this.balance.subtract(amount);
@@ -70,6 +73,7 @@ public class Account {
     public String getCurrency() { return currency; }
     public BigDecimal getBalance() { return balance; }
     public AccountStatus getStatus() { return status; }
+    public boolean isSystem() { return isSystem; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
 

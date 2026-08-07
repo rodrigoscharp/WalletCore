@@ -15,6 +15,8 @@ public interface AccountRepository extends JpaRepository<Account, UUID> {
 
     List<Account> findAllByUserOrderByCreatedAtAsc(User user);
 
+    Optional<Account> findByCurrencyAndIsSystemTrue(String currency);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT a FROM Account a WHERE a.id = :id")
     Optional<Account> findByIdWithLock(UUID id);
