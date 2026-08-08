@@ -175,7 +175,21 @@ Isso sobe:
 - **RabbitMQ 3.13** em `localhost:5672` (management UI: `localhost:15672`)
 - **Redis 7.4** em `localhost:6379`
 
-### 2. Execute a aplicação
+### 2. Configure a chave de assinatura dos tokens
+
+A aplicação não sobe sem `JWT_SECRET` — uma chave de assinatura commitada no repositório seria uma
+chave pública, então não existe valor padrão. Gere a sua:
+
+```bash
+cp .env.example .env
+echo "JWT_SECRET=$(openssl rand -hex 32)" >> .env
+export $(grep -v '^#' .env | xargs)
+```
+
+As demais variáveis (`DB_*`, `RABBITMQ_*`, `REDIS_*`) são opcionais: os defaults já batem com o
+`docker-compose.yml`. Elas existem para que a mesma configuração sirva em produção.
+
+### 3. Execute a aplicação
 
 ```bash
 mvn spring-boot:run
@@ -184,7 +198,7 @@ mvn spring-boot:run
 A aplicação inicia em `http://localhost:8080`.  
 O Flyway aplica todas as migrations automaticamente na primeira execução.
 
-### 3. Acesse a documentação interativa
+### 4. Acesse a documentação interativa
 
 ```
 http://localhost:8080/swagger-ui.html

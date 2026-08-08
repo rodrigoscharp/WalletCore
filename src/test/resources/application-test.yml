@@ -6,7 +6,9 @@ spring:
 
 security:
   jwt:
-    secret: "3cfa76ef14937c1c0ea519f8fc057a80fcd04a7e5f6abe35b318e040f2ac3e0"
+    # Valor fixo só para os testes, deliberadamente sem cara de segredo real: a suíte precisa de
+    # uma chave determinística e nenhum token daqui vale fora do perfil de teste.
+    secret: "test-only-signing-key-not-a-secret-do-not-use"
     access-token-expiration: 900000
     refresh-token-expiration: 604800000
 
