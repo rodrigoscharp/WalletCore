@@ -14,6 +14,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.UUID;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -120,6 +121,84 @@ class TransferIntegrationTest extends AbstractIntegrationTest {
                         .param("size", "20"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content").isArray());
+    }
+
+    @Test
+    void getTransactions_withEachFilter_shouldApplyItWithoutFailing() throws Exception {
+        // A conta de origem nasce com um DEPOSIT de saldo inicial; a transferência é a segunda
+        // transação dela. Cada teste registra um usuário novo, então essas duas são as únicas.
+        transfer("100.00", "Filtered");
+
+        getTransactions().andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(2))
+                // ORDER BY created_at DESC continua valendo com o predicado dinâmico
+                .andExpect(jsonPath("$.content[0].type").value("TRANSFER"))
+                .andExpect(jsonPath("$.content[1].type").value("DEPOSIT"));
+
+        getTransactions("type", "TRANSFER").andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].type").value("TRANSFER"));
+
+        getTransactions("type", "DEPOSIT").andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].type").value("DEPOSIT"));
+
+        getTransactions("status", "COMPLETED").andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(2));
+
+        getTransactions("startDate", Instant.now().minusSeconds(3600).toString())
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(2));
+
+        getTransactions("startDate", Instant.now().plusSeconds(3600).toString())
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content").isEmpty());
+
+        getTransactions("endDate", Instant.now().minusSeconds(3600).toString())
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content").isEmpty());
+    }
+
+    @Test
+    void getTransactions_withAllFiltersCombined_shouldApplyThemTogether() throws Exception {
+        transfer("70.00", "Combined");
+
+        mockMvc.perform(get("/api/v1/transactions")
+                        .header("Authorization", "Bearer " + accessToken)
+                        .param("accountId", sourceAccountId.toString())
+                        .param("startDate", Instant.now().minusSeconds(3600).toString())
+                        .param("endDate", Instant.now().plusSeconds(3600).toString())
+                        .param("status", "COMPLETED")
+                        .param("type", "TRANSFER"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].type").value("TRANSFER"))
+                .andExpect(jsonPath("$.content[0].status").value("COMPLETED"));
+    }
+
+    private org.springframework.test.web.servlet.ResultActions getTransactions(String... filter)
+            throws Exception {
+        var request = get("/api/v1/transactions")
+                .header("Authorization", "Bearer " + accessToken)
+                .param("accountId", sourceAccountId.toString());
+
+        if (filter.length == 2) {
+            request = request.param(filter[0], filter[1]);
+        }
+
+        return mockMvc.perform(request);
+    }
+
+    private void transfer(String amount, String description) throws Exception {
+        var request = new TransferRequest(sourceAccountId, targetAccountId,
+                new BigDecimal(amount), description);
+
+        mockMvc.perform(post("/api/v1/transactions/transfer")
+                        .header("Authorization", "Bearer " + accessToken)
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated());
     }
 
     private UUID createAccount(String name, String initialBalance) throws Exception {

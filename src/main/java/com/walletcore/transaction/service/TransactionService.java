@@ -11,11 +11,14 @@ import com.walletcore.transaction.dto.TransactionResponse;
 import com.walletcore.transaction.dto.TransferRequest;
 import com.walletcore.transaction.entity.Transaction;
 import com.walletcore.transaction.repository.TransactionRepository;
+import com.walletcore.transaction.repository.TransactionSpecifications;
 import com.walletcore.user.entity.User;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,6 +31,8 @@ import java.util.UUID;
 public class TransactionService {
 
     private static final Logger log = LoggerFactory.getLogger(TransactionService.class);
+
+    private static final Sort DEFAULT_SORT = Sort.by(Sort.Direction.DESC, "createdAt");
 
     private final TransactionRepository transactionRepository;
     private final AccountRepository accountRepository;
@@ -216,8 +221,16 @@ public class TransactionService {
         var user = accountService.currentUser();
         accountService.findAccountOwnedBy(accountId, user);
 
-        return transactionRepository
-                .findByAccountIdAndFilters(accountId, startDate, endDate, status, type, pageable)
+        // A ordenação vinha embutida no ORDER BY da consulta; com o predicado dinâmico ela passa a
+        // vir do Pageable, então o padrão é reposto aqui quando o chamador não pede uma ordem.
+        var effectivePageable = pageable.getSort().isSorted()
+                ? pageable
+                : PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), DEFAULT_SORT);
+
+        var spec = TransactionSpecifications
+                .forAccountWithFilters(accountId, startDate, endDate, status, type);
+
+        return transactionRepository.findAll(spec, effectivePageable)
                 .map(TransactionResponse::from);
     }
 
